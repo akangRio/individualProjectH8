@@ -106,6 +106,21 @@ class Controller {
       console.log(err);
     }
   }
+
+  static async spotifySearch(req, res, next) {
+    try {
+      const strings = "semata karena mu";
+
+      const convert = strings.replace(" ", "+");
+      const search = await axios.get(
+        `'https://api.spotify.com/v1/search?q=${convert}&type=track&include_external=audio'`
+      );
+
+      console.log(search);
+    } catch (err) {
+      console.log(err);
+    }
+  }
 }
 
 module.exports = Controller;
