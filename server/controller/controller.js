@@ -4,6 +4,7 @@ const querystring = require("querystring");
 class Controller {
   static async spotify(req, res, next) {
     try {
+      console.log("here");
     } catch (err) {}
   }
 
@@ -36,18 +37,7 @@ class Controller {
 
   static async spotifyLogin(req, res, next) {
     try {
-      let scope = "user-read-private user-read-email";
-      const client_id = "ccccac09d6a642e7b4d45b5ede1e7525";
-      let redirect_uri = "http://localhost:3000/callback";
-      res.redirect(
-        "https://accounts.spotify.com/authorize?" +
-          querystring.stringify({
-            response_type: "code",
-            client_id: client_id,
-            scope: scope,
-            redirect_uri: redirect_uri,
-          })
-      );
+      console.log("YY");
     } catch (err) {
       console.log(err);
     }
@@ -55,8 +45,8 @@ class Controller {
 
   static async spotifyAuthorization(req, res, next) {
     try {
-      let code = req.query.code || null;
-      let redirect_uri = "http://localhost:3000/callback";
+      const { code } = req.body || null;
+      let redirect_uri = "http://localhost:5173/callback";
       console.log("XX");
       const client_id = "ccccac09d6a642e7b4d45b5ede1e7525";
       const client_secret = "d0fec30a049c4886a98cd0d827f90004";
@@ -79,7 +69,7 @@ class Controller {
         }
       );
       console.log(loginSpotify.data);
-      //http GET https://api.spotify.com/v1/me
+      //http GET https://api.spotify.com/v1/meq
 
       const userData = await axios.get("https://api.spotify.com/v1/me", {
         headers: {

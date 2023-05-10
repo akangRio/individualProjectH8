@@ -5,6 +5,6 @@ const router = express.Router();
 router.get("/", Controller.spotify);
 router.get("/spot", Controller.spotifyToken);
 router.get("/login", Controller.spotifyLogin);
-router.get("/callback", Controller.spotifyAuthorization);
+router.post("/callback", Controller.spotifyAuthorization);
 router.get("/refreshToken", Controller.spotifyRefresh);
 module.exports = router;
