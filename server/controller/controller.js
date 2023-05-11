@@ -1,5 +1,8 @@
 const axios = require("axios");
 const querystring = require("querystring");
+const { User, Token, Player } = require("../models/index");
+const { generateToken, verifyToken } = require("../helpers/jwt");
+const { passValidator } = require("../helpers/bcrypt");
 
 class Controller {
   static async spotify(req, res, next) {
@@ -10,8 +13,9 @@ class Controller {
 
   static async spotifyToken(req, res, next) {
     try {
-      const client_id = "ccccac09d6a642e7b4d45b5ede1e7525";
-      const client_secret = "d0fec30a049c4886a98cd0d827f90004";
+      const client_id = process.env.CLIENT_ID;
+      const client_secret = process.env.CLIENT_SECRET;
+
       const data = await axios.post(
         "https://accounts.spotify.com/api/token",
         {
@@ -31,7 +35,7 @@ class Controller {
       const token = data.data;
       console.log(token, "1");
     } catch (err) {
-      console.log(err);
+      next(err);
     }
   }
 
@@ -48,8 +52,9 @@ class Controller {
       const { code } = req.body || null;
       let redirect_uri = "http://localhost:5173/callback";
       console.log("XX");
-      const client_id = "ccccac09d6a642e7b4d45b5ede1e7525";
-      const client_secret = "d0fec30a049c4886a98cd0d827f90004";
+      const client_id = process.env.CLIENT_ID;
+      const client_secret = process.env.CLIENT_SECRET;
+
       const loginSpotify = await axios.post(
         "https://accounts.spotify.com/api/token",
         {
@@ -77,8 +82,41 @@ class Controller {
         },
       });
       console.log(userData.data);
+      console.log(userData.data.email);
+      console.log(userData.data.display_name);
+
+      const [user, created] = await User.findOrCreate({
+        where: { email: userData.data.email },
+        defaults: {
+          email: userData.data.email,
+          password: userData.data.display_name,
+          role: "spotify",
+        },
+      });
+
+      if (user) {
+        await Token.update(
+          { key: loginSpotify.data.access_token },
+          { where: { userId: user.id } }
+        );
+      } else {
+        const token = await Token.create({
+          userId: user.id ? user.id : created.id,
+          key: loginSpotify.data.access_token,
+        });
+      }
+
+      const access_token = generateToken({
+        payload: {
+          id: user.id ? user.id : created.id,
+          email: user.email ? user.email : created.id,
+        },
+      });
+
+      res.status(201).json({ access_token: access_token });
     } catch (err) {
       console.log(err);
+      next(err);
     }
   }
 
@@ -103,22 +141,111 @@ class Controller {
         }
       );
     } catch (err) {
-      console.log(err);
+      next(err);
     }
   }
 
   static async spotifySearch(req, res, next) {
     try {
-      const strings = "semata karena mu";
+      const { payload } = req.identity;
+      const { id } = payload;
+      const { key } = await Token.findOne({ where: { userId: id } });
+      const strings = req.body.word;
+      if (!strings) {
+        throw { name: "Not Found" };
+      }
+      console.log(strings);
 
-      const convert = strings.replace(" ", "+");
+      const convert = strings.replaceAll(" ", "+");
       const search = await axios.get(
-        `'https://api.spotify.com/v1/search?q=${convert}&type=track&include_external=audio'`
+        `https://api.spotify.com/v1/search?q=${convert}&type=track&limit=5`,
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: "Bearer " + key,
+          },
+        }
       );
 
-      console.log(search);
+      console.log(search.data);
+      const searchedTracks = search.data.tracks.items;
+      res.status(200).json(searchedTracks);
     } catch (err) {
-      console.log(err);
+      next(err);
+    }
+  }
+
+  static async userlogin(req, res, next) {
+    try {
+      console.log(req.body);
+      const { email, password } = req.body;
+      const select = await User.findOne({ where: { email: email } });
+      if (!select) {
+        throw { name: "Not Found" };
+      }
+
+      if (passValidator(password, select.password)) {
+        const access_token = generateToken({
+          id: select.id,
+          email: select.email,
+        });
+
+        res.status(200).json(access_token);
+      }
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async userregister(req, res, next) {
+    try {
+      const { email, password } = req.body;
+      const create = await User.create({ email, password });
+      res.status(201).json({
+        message: "sucessfully registered",
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async saveuri(req, res, next) {
+    try {
+      const { uri } = req.body;
+      console.log(uri);
+
+      const saveURI = await Player.create({
+        userId: req.identity.payload.id,
+        uri: uri,
+      });
+      console.log(saveURI);
+
+      res.status(201).json({
+        message: "succesfully add a Player",
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async players(req, res, next) {
+    try {
+      console.log("here");
+      const { payload } = req.identity;
+      const { id } = payload;
+      console.log(id);
+      const plays = await Player.findAll({
+        where: {
+          userId: id,
+        },
+      });
+      console.log(plays);
+
+      res.status(200).json({
+        players: plays,
+      });
+    } catch (err) {
+      next(err);
     }
   }
 }
