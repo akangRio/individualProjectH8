@@ -4,7 +4,7 @@ const { authentication } = require("../middleware/authentication");
 const router = express.Router();
 
 router.get("/", Controller.spotify);
-router.get("/spot", Controller.spotifyToken);
+router.post("/spot", Controller.spotifyToken);
 router.get("/login", Controller.spotifyLogin);
 router.post("/userlogin", Controller.userlogin);
 router.post("/userregister", Controller.userregister);

@@ -3,6 +3,8 @@ const querystring = require("querystring");
 const { User, Token, Player } = require("../models/index");
 const { generateToken, verifyToken } = require("../helpers/jwt");
 const { passValidator } = require("../helpers/bcrypt");
+// const redirecturi = "https://final-56b4c.web.app/callback";
+const redirecturi = "http://localhost:5173/callback";
 
 class Controller {
   static async spotify(req, res, next) {
@@ -34,7 +36,32 @@ class Controller {
       );
       const token = data.data;
       console.log(token, "1");
+      const { access_token } = token;
+      console.log(access_token);
+
+      const strings = req.body.word;
+      if (!strings) {
+        throw { name: "Not Found" };
+      }
+      console.log(strings);
+
+      const convert = strings.replaceAll(" ", "+");
+
+      const search = await axios.get(
+        `https://api.spotify.com/v1/search?q=${convert}&type=track&limit=10`,
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: "Bearer " + access_token,
+          },
+        }
+      );
+
+      console.log(search.data);
+      const searchedTracks = search.data.tracks.items;
+      res.status(200).json(searchedTracks);
     } catch (err) {
+      console.log(err);
       next(err);
     }
   }
@@ -50,8 +77,8 @@ class Controller {
   static async spotifyAuthorization(req, res, next) {
     try {
       const { code } = req.body || null;
-      let redirect_uri = "http://localhost:5173/callback";
-      console.log("XX");
+      let redirect_uri = redirecturi;
+      console.log(code, "XXXX");
       const client_id = process.env.CLIENT_ID;
       const client_secret = process.env.CLIENT_SECRET;
 
@@ -107,15 +134,26 @@ class Controller {
       }
 
       const access_token = generateToken({
-        payload: {
-          id: user.id ? user.id : created.id,
-          email: user.email ? user.email : created.id,
-        },
+        id: user.id ? user.id : created.id,
+        email: user.email ? user.email : created.id,
       });
 
-      res.status(201).json({ access_token: access_token });
+      // const qr = await axios.post(
+      //   `https://api.qr-code-generator.com/v1/create?access-token=${process.env.QR_APIKEY}`,
+      //   {
+      //     frame_name: "no-frame",
+      //     qr_code_text: `${loginSpotify.data.uri}`,
+      //     image_format: "SVG",
+      //     qr_code_logo: "scan-me-square",
+      //   }
+      // );
+
+      res.status(201).json({
+        access_token: access_token,
+        email: userData.data.email,
+      });
     } catch (err) {
-      console.log(err);
+      console.log(err, "PPPP");
       next(err);
     }
   }
@@ -190,7 +228,10 @@ class Controller {
           email: select.email,
         });
 
-        res.status(200).json(access_token);
+        res.status(200).json({
+          access_token: access_token,
+          email: email,
+        });
       }
     } catch (err) {
       next(err);
@@ -215,7 +256,7 @@ class Controller {
       console.log(uri);
 
       const saveURI = await Player.create({
-        userId: req.identity.payload.id,
+        userId: req.identity.id,
         uri: uri,
       });
       console.log(saveURI);
@@ -231,18 +272,21 @@ class Controller {
   static async players(req, res, next) {
     try {
       console.log("here");
-      const { payload } = req.identity;
+      const payload = req.identity;
+      console.log(req.identity);
       const { id } = payload;
       console.log(id);
-      const plays = await Player.findAll({
+      const plays = await Player.findAndCountAll({
         where: {
           userId: id,
         },
+        order: [["id", "DESC"]],
+        limit: 4,
       });
       console.log(plays);
 
       res.status(200).json({
-        players: plays,
+        players: plays.rows,
       });
     } catch (err) {
       next(err);
